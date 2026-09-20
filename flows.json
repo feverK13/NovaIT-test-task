@@ -1,0 +1,170 @@
+[
+    {
+        "id": "9ad66c059e4fc6e0",
+        "type": "tab",
+        "label": "Flow 1",
+        "disabled": false,
+        "info": "",
+        "env": []
+    },
+    {
+        "id": "ed08988c52381209",
+        "type": "chatbot-telegram-node",
+        "botname": "NovaIT-test-task-BOT",
+        "polling": "500",
+        "store": "",
+        "debug": false,
+        "skipMediaFiles": false,
+        "webHook": "",
+        "connectMode": "polling",
+        "storeMessages": true,
+        "enableMissionControl": false,
+        "inspectMessages": true,
+        "chatbotId": ""
+    },
+    {
+        "id": "8c0c8e4d5b34e764",
+        "type": "chatbot-telegram-receive",
+        "z": "9ad66c059e4fc6e0",
+        "bot": "ed08988c52381209",
+        "botProduction": "",
+        "x": 290,
+        "y": 720,
+        "wires": [
+            [
+                "250b2c418d6eca24",
+                "cf5fda4ef06ff1dc"
+            ],
+            []
+        ]
+    },
+    {
+        "id": "fe36c2894ef1e419",
+        "type": "chatbot-telegram-send",
+        "z": "9ad66c059e4fc6e0",
+        "bot": "ed08988c52381209",
+        "botProduction": "",
+        "track": false,
+        "passThrough": false,
+        "errorOutput": false,
+        "outputs": 0,
+        "x": 970,
+        "y": 700,
+        "wires": []
+    },
+    {
+        "id": "250b2c418d6eca24",
+        "type": "debug",
+        "z": "9ad66c059e4fc6e0",
+        "name": "debug 1",
+        "active": true,
+        "tosidebar": true,
+        "console": false,
+        "tostatus": false,
+        "complete": "payload",
+        "targetType": "msg",
+        "statusVal": "",
+        "statusType": "auto",
+        "x": 520,
+        "y": 640,
+        "wires": []
+    },
+    {
+        "id": "cf5fda4ef06ff1dc",
+        "type": "function",
+        "z": "9ad66c059e4fc6e0",
+        "name": "menu func",
+        "func": "const content = (msg.payload && msg.payload.content) ? String(msg.payload.content).trim() : '';\nconst chatId = msg.payload.chatId;\nconst stateKey = 'calc_state_' + chatId;\nconst state = flow.get(stateKey) || 'menu';\n\nfunction log(step, detail) {\n    node.warn(`[${new Date().toISOString()}] chatId=${chatId} step=${step} :: ${detail}`);\n}\n\nconst buttons = [\n    { type: 'postback', label: '🧮 Калькулятор', value: 'menu_calc' },\n    { type: 'postback', label: '💱 Курс валют', value: 'menu_currency' },\n    { type: 'postback', label: 'ℹ️ Про бота', value: 'menu_about' }\n];\n\nif (content === '/start' || content === '/menu' || content === 'back') {\n    flow.set(stateKey, 'menu');\n    return [{ ...msg, payload: { type: 'inline-buttons', chatId, content: 'Головне меню. Обери пункт:', buttons } }, null, null];\n}\n\nif (content === 'menu_calc') {\n    flow.set(stateKey, 'awaiting_calc');\n    return [{ ...msg, payload: { type: 'message', chatId,\n        content: 'Введи вираз у форматі \"число оператор число\", наприклад: 12 + 7\\nОператори: + − * / (або × ÷)\\n\\n/menu — повернутись у меню' } }, null, null];\n}\n\nif (content === 'menu_currency') {\n    flow.set(stateKey, 'menu');\n    log('nbu:request_sent', 'calling NBU API');\n    return [null, null, { ...msg, chatId }];\n}\n\nif (content === 'menu_about') {\n    flow.set(stateKey, 'menu');\n    return [{ ...msg, payload: { type: 'message', chatId,\n        content: 'ℹ️ Тестовий бот NovaIT.\\nРахує вирази та показує курс валют з API НБУ.\\n\\n/menu — головне меню' } }, null, null];\n}\n\nif (state === 'awaiting_calc') {\n    return [null, { ...msg, chatId }, null];\n}\n\nreturn [{ ...msg, payload: { type: 'inline-buttons', chatId, content: 'Не зрозумів ваш запит. Оберіть пункт повторно:', buttons } }, null, null];",
+        "outputs": 3,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 530,
+        "y": 780,
+        "wires": [
+            [
+                "fe36c2894ef1e419"
+            ],
+            [
+                "8613047dae5d7873"
+            ],
+            [
+                "148f4cc185c57c68"
+            ]
+        ]
+    },
+    {
+        "id": "8613047dae5d7873",
+        "type": "function",
+        "z": "9ad66c059e4fc6e0",
+        "name": "Calc",
+        "func": "const chatId = msg.chatId;\nconst raw = (msg.payload && msg.payload.content) ? String(msg.payload.content).trim() : '';\n\nnode.warn(`[${new Date().toISOString()}] chatId=${chatId} step=calc:input_received :: raw=\"${raw}\"`);\n\nif (raw.length === 0) {\n    node.warn(`[${new Date().toISOString()}] chatId=${chatId} step=calc:validation_error :: empty input`);\n    msg.payload = { type: 'message', chatId, content: '⚠️ Повідомлення порожнє. Введи вираз, наприклад: 12 + 7' };\n    return msg;\n}\n\nif (raw.length > 50) {\n    node.warn(`[${new Date().toISOString()}] chatId=${chatId} step=calc:validation_error :: input too long`);\n    msg.payload = { type: 'message', chatId, content: '⚠️ Занадто довгий ввід. Спробуй коротше, наприклад: 12 + 7' };\n    return msg;\n}\n\nconst clean = raw.replace(/\\s+/g, ''); // прибираємо всі пробіли — \"8*8\" і \"8 * 8\" стають однаковими\nconst match = clean.match(/^(\\d+(?:[.,]\\d+)?)([+\\-*/×÷])(\\d+(?:[.,]\\d+)?)$/);\n\nif (!match) {\n    node.warn(`[${new Date().toISOString()}] chatId=${chatId} step=calc:validation_error :: unrecognized format`);\n    msg.payload = { type: 'message', chatId, content: '⚠️ Не розпізнав вираз. Формат: число оператор число, наприклад: 12 + 7 або 8*8' };\n    return msg;\n}\n\nconst n1 = Number(match[1].replace(',', '.'));\nconst op = match[2];\nconst n2 = Number(match[3].replace(',', '.'));\n\nlet result;\nif (op === '+') result = n1 + n2;\nelse if (op === '-' || op === '−') result = n1 - n2;\nelse if (op === '*' || op === '×') result = n1 * n2;\nelse {\n    if (n2 === 0) {\n        node.warn(`[${new Date().toISOString()}] chatId=${chatId} step=calc:validation_error :: division by zero`);\n        msg.payload = { type: 'message', chatId, content: '⚠️ Ділення на нуль неможливе. Спробуй інший вираз.' };\n        return msg;\n    }\n    result = n1 / n2;\n}\n\nnode.warn(`[${new Date().toISOString()}] chatId=${chatId} step=calc:success :: ${n1} ${op} ${n2} = ${result}`);\nmsg.payload = { type: 'message', chatId, content: `✅ Результат: ${n1} ${op} ${n2} = ${result}\\n\\nЩе один вираз або /menu` };\nreturn msg;",
+        "outputs": 1,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 730,
+        "y": 780,
+        "wires": [
+            [
+                "fe36c2894ef1e419"
+            ]
+        ]
+    },
+    {
+        "id": "148f4cc185c57c68",
+        "type": "http request",
+        "z": "9ad66c059e4fc6e0",
+        "name": "",
+        "method": "GET",
+        "ret": "obj",
+        "paytoqs": "ignore",
+        "url": "https://bank.gov.ua/NBUStatService/v1/statdirectory/exchange?json",
+        "tls": "",
+        "persist": false,
+        "proxy": "",
+        "insecureHTTPParser": false,
+        "authType": "",
+        "senderr": false,
+        "headers": [],
+        "x": 750,
+        "y": 820,
+        "wires": [
+            [
+                "2c7c26143bea9a17"
+            ]
+        ]
+    },
+    {
+        "id": "2c7c26143bea9a17",
+        "type": "function",
+        "z": "9ad66c059e4fc6e0",
+        "name": "Currency Handler",
+        "func": "const chatId = msg.chatId;\n\nnode.warn(`[${new Date().toISOString()}] chatId=${chatId} step=nbu:response_received :: statusCode=${msg.statusCode}`);\n\nconst data = msg.payload;\nconst usd = Array.isArray(data) ? data.find(c => c.cc === 'USD') : null;\nconst eur = Array.isArray(data) ? data.find(c => c.cc === 'EUR') : null;\n\nif (!usd || !eur) {\n    node.warn(`[${new Date().toISOString()}] chatId=${chatId} step=nbu:error :: invalid response or USD/EUR missing`);\n    msg.payload = { type: 'message', chatId, content: '⚠️ Не вдалося отримати курс, спробуйте пізніше.' };\n    return msg;\n}\n\nnode.warn(`[${new Date().toISOString()}] chatId=${chatId} step=nbu:success :: USD=${usd.rate} EUR=${eur.rate}`);\nmsg.payload = {\n    type: 'message',\n    chatId,\n    content: `💱 Курс НБУ на ${usd.exchangedate}:\\n\\nUSD: ${usd.rate.toFixed(4)} грн\\nEUR: ${eur.rate.toFixed(4)} грн\\n\\n/menu — головне меню`\n};\nreturn msg;",
+        "outputs": 1,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 970,
+        "y": 820,
+        "wires": [
+            [
+                "fe36c2894ef1e419"
+            ]
+        ]
+    },
+    {
+        "id": "ccdf868585cceb97",
+        "type": "global-config",
+        "env": [],
+        "modules": {
+            "node-red-contrib-chatbot": "2.0.5"
+        }
+    }
+]
