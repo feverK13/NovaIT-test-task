@@ -1,0 +1,4 @@
+node_modules/
+.node-red/
+*.log
+.env
